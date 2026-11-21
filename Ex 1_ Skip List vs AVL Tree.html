@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ex 1: Skip List vs AVL Tree</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#5b6572;--bd:#dde1e7;--sl:#2563eb;--avl:#e8590c;--ref:#7c8795;--acc:#2563eb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#101317;--card:#181c22;--tx:#e8ebef;--mut:#9aa4b1;--bd:#2b323b;--sl:#5b9bff;--avl:#ff9248;--ref:#8a95a3;--acc:#5b9bff}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#101317;--card:#181c22;--tx:#e8ebef;--mut:#9aa4b1;--bd:#2b323b;--sl:#5b9bff;--avl:#ff9248;--ref:#8a95a3;--acc:#5b9bff}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*:before,*:after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.5rem;margin:.2em 0}h2{font-size:1.1rem;margin:0 0 10px}
+.sub{color:var(--mut);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+label{display:block;font-size:.8rem;color:var(--mut);margin-bottom:3px}
+input{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+button{padding:9px 18px;border:0;border-radius:8px;background:var(--acc);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.msg{color:var(--mut);font-size:.85rem}.err{color:#d93025}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.88rem}
+th,td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+th{color:var(--mut);font-weight:600}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--tx);font-size:11px}svg .m{fill:var(--mut)}
+pre{margin:0;padding:10px;background:var(--bg);border:1px solid var(--bd);border-radius:8px;overflow-x:auto;font-size:.82rem}
+.lg{display:flex;gap:14px;font-size:.8rem;margin-top:6px;flex-wrap:wrap}
+.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+</style>
+</head>
+<body>
+<main>
+<h1>Ex 1: Skip List vs AVL Tree</h1>
+<p class="sub">CP25C01 – Advanced Data Structures and Algorithms Lab · An in-memory ordered index (order-book style workload). Both structures are implemented in JavaScript, benchmarked live in your browser.</p>
+
+<div class="card">
+<h2>1. Benchmark inputs</h2>
+<div class="grid">
+<div><label for="sizes">Key-set sizes n (comma separated)</label><input id="sizes" value="10000, 50000, 100000"></div>
+<div><label for="p">Skip-list probability p (0–1)</label><input id="p" type="number" step="0.05" min="0.05" max="0.95" value="0.5"></div>
+<div><label for="maxl">Skip-list MaxLevel</label><input id="maxl" type="number" min="4" max="32" value="20"></div>
+<div><label for="seed">Random seed</label><input id="seed" type="number" value="42"></div>
+</div>
+<div class="row"><button id="run">Run benchmark</button><span class="msg" id="status">Workload per n: n inserts, n/2 searches, n/2 deletes.</span></div>
+</div>
+
+<div class="card" id="resCard" hidden>
+<h2>2. Output</h2>
+<div class="scroll"><table id="tbl"></table></div>
+<p class="msg" id="concl"></p>
+</div>
+
+<div class="charts" id="charts" hidden>
+<div class="card"><h2>Operation time at largest n (ms)</h2><div id="c1"></div>
+<div class="lg"><span><i style="background:var(--sl)"></i>Skip list</span><span><i style="background:var(--avl)"></i>AVL tree</span></div></div>
+<div class="card"><h2>Comparisons per search vs n</h2><div id="c2"></div>
+<div class="lg"><span><i style="background:var(--sl)"></i>Skip list</span><span><i style="background:var(--avl)"></i>AVL tree</span><span><i style="background:var(--ref)"></i>log₂ n and 2 log₂ n (dashed)</span></div></div>
+</div>
+
+<div class="card">
+<h2>3. Try the skip list: keys and range query</h2>
+<div class="grid">
+<div><label for="keys">Keys (comma separated integers)</label><input id="keys" value="105, 7, 42, 160, 101, 99, 130, 15, 120, 141"></div>
+<div><label for="lo">Range low</label><input id="lo" type="number" value="100"></div>
+<div><label for="hi">Range high</label><input id="hi" type="number" value="160"></div>
+<div><label for="del">Key to search / delete</label><input id="del" type="number" value="42"></div>
+</div>
+<div class="row"><button id="demo">Build &amp; query</button></div>
+<pre id="demoOut" style="margin-top:12px">Press “Build &amp; query”.</pre>
+</div>
+</main>
+
+<script>
+"use strict";
+function rng(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let rand=rng(42);
+const $=id=>document.getElementById(id);
+
+/* ---------- Skip list ---------- */
+class SLNode{constructor(k,v,l){this.key=k;this.val=v;this.fwd=new Array(l+1).fill(null)}}
+class SkipList{
+  constructor(max=20,p=.5){this.MAX=max;this.p=p;this.level=0;this.head=new SLNode(null,null,max);this.size=0;this.cmp=0}
+  rl(){let l=0;while(rand()<this.p&&l<this.MAX)l++;return l}
+  fu(key){const upd=new Array(this.MAX+1).fill(null);let x=this.head;
+    for(let i=this.level;i>=0;i--){while(x.fwd[i]&&x.fwd[i].key<key){this.cmp++;x=x.fwd[i]}this.cmp++;upd[i]=x}
+    return [upd,x.fwd[0]]}
+  insert(key,val){const [upd,x]=this.fu(key);if(x&&x.key===key){x.val=val;return}
+    const l=this.rl();if(l>this.level){for(let i=this.level+1;i<=l;i++)upd[i]=this.head;this.level=l}
+    const n=new SLNode(key,val,l);for(let i=0;i<=l;i++){n.fwd[i]=upd[i].fwd[i];upd[i].fwd[i]=n}this.size++}
+  search(key){let x=this.head;
+    for(let i=this.level;i>=0;i--){while(x.fwd[i]&&x.fwd[i].key<key){this.cmp++;x=x.fwd[i]}this.cmp++}
+    x=x.fwd[0];return x&&x.key===key?x.val:null}
+  delete(key){const [upd,x]=this.fu(key);if(!x||x.key!==key)return false;
+    for(let i=0;i<=this.level;i++){if(upd[i].fwd[i]!==x)break;upd[i].fwd[i]=x.fwd[i]}
+    while(this.level>0&&!this.head.fwd[this.level])this.level--;this.size--;return true}
+  range(lo,hi){let x=this.head;for(let i=this.level;i>=0;i--)while(x.fwd[i]&&x.fwd[i].key<lo)x=x.fwd[i];
+    x=x.fwd[0];const o=[];while(x&&x.key<=hi){o.push(x.key);x=x.fwd[0]}return o}
+}
+
+/* ---------- AVL tree ---------- */
+const H=n=>n?n.h:0,uh=n=>{n.h=1+Math.max(H(n.left),H(n.right))},bal=n=>H(n.left)-H(n.right);
+function rotR(z){const y=z.left;z.left=y.right;y.right=z;uh(z);uh(y);return y}
+function rotL(z){const y=z.right;z.right=y.left;y.left=z;uh(z);uh(y);return y}
+function reb(n){uh(n);const b=bal(n);
+  if(b>1){if(bal(n.left)<0)n.left=rotL(n.left);return rotR(n)}
+  if(b<-1){if(bal(n.right)>0)n.right=rotR(n.right);return rotL(n)}return n}
+class AVL{
+  constructor(){this.root=null;this.cmp=0}
+  insert(k,v){this.root=this._i(this.root,k,v)}
+  _i(n,k,v){if(!n)return{key:k,val:v,left:null,right:null,h:1};this.cmp++;
+    if(k<n.key)n.left=this._i(n.left,k,v);else if(k>n.key)n.right=this._i(n.right,k,v);else{n.val=v;return n}return reb(n)}
+  search(k){let n=this.root;while(n){this.cmp++;if(k===n.key)return n.val;n=k<n.key?n.left:n.right}return null}
+  delete(k){this.root=this._d(this.root,k)}
+  _d(n,k){if(!n)return null;this.cmp++;
+    if(k<n.key)n.left=this._d(n.left,k);else if(k>n.key)n.right=this._d(n.right,k);
+    else{if(!n.left||!n.right)return n.left||n.right;let s=n.right;while(s.left)s=s.left;n.key=s.key;n.val=s.val;n.right=this._d(n.right,s.key)}
+    return reb(n)}
+  height(){return H(this.root)}
+}
+
+/* ---------- Benchmark ---------- */
+function sample(N,count){ // distinct keys from 1..10N (partial Fisher–Yates via Set)
+  const s=new Set();while(s.size<count)s.add(1+Math.floor(rand()*10*N));return [...s]}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function time(fn,data){const t=performance.now();for(let i=0;i<data.length;i++)fn(data[i]);return performance.now()-t}
+const tick=()=>new Promise(r=>setTimeout(r,0));
+let results=[];
+
+$("run").onclick=async()=>{
+  const st=$("status");st.className="msg";
+  const sizes=$("sizes").value.split(/[,\s]+/).filter(Boolean).map(Number);
+  const p=+$("p").value,max=+$("maxl").value,seed=+$("seed").value;
+  if(!sizes.length||sizes.some(n=>!Number.isInteger(n)||n<100||n>500000)){st.textContent="Enter integer sizes between 100 and 500000.";st.className="msg err";return}
+  if(!(p>0&&p<1)){st.textContent="p must be between 0 and 1.";st.className="msg err";return}
+  $("run").disabled=true;rand=rng(seed);results=[];
+  sizes.sort((a,b)=>a-b);
+  for(const N of sizes){
+    st.textContent=`Running n = ${N.toLocaleString()} …`;await tick();
+    const keys=sample(N,N),probe=shuffle(keys.slice()).slice(0,N>>1);
+    const sl=new SkipList(max,p),avl=new AVL();let slLevels;
+    const ops=[["insert",k=>sl.insert(k,k),k=>avl.insert(k,k),keys],["search",k=>sl.search(k),k=>avl.search(k),probe],["delete",k=>sl.delete(k),k=>avl.delete(k),probe]];
+    for(const [op,f,g,data] of ops){
+      sl.cmp=avl.cmp=0;const ts=time(f,data),ta=time(g,data);
+      if(op==="insert")slLevels=sl.level+1;
+      results.push({N,op,ts,ta,cs:sl.cmp/data.length,ca:avl.cmp/data.length,hs:slLevels,ha:avl.height()});
+      await tick();
+    }
+  }
+  render(p);$("run").disabled=false;st.textContent="Done. Timings vary with your device and browser.";
+};
+
+function render(p){
+  const f=(x,d=1)=>x.toFixed(d);
+  let h=`<tr><th>n</th><th>Op</th><th>SkipList ms</th><th>AVL ms</th><th>SL cmp/op</th><th>AVL cmp/op</th><th>Faster</th></tr>`;
+  for(const r of results)h+=`<tr><td>${r.N.toLocaleString()}</td><td>${r.op}</td><td>${f(r.ts)}</td><td>${f(r.ta)}</td><td>${f(r.cs)}</td><td>${f(r.ca)}</td><td>${r.ts<r.ta?"Skip list":"AVL"}</td></tr>`;
+  $("tbl").innerHTML=h;
+  const L=results[results.length-1],last=results.filter(r=>r.N===L.N);
+  const w=o=>last.find(r=>r.op===o);
+  $("concl").textContent=`At n = ${L.N.toLocaleString()}: skip list used ${L.hs} levels, AVL height ${L.ha} (bound 1.44·log₂n ≈ ${f(1.44*Math.log2(L.N))}). Insert faster: ${w("insert").ts<w("insert").ta?"skip list":"AVL"}; search faster: ${w("search").ts<w("search").ta?"skip list":"AVL"}; delete faster: ${w("delete").ts<w("delete").ta?"skip list":"AVL"}. Expected skip-list search cost ≈ (log₁/ₚ n)/p = ${f(Math.log(L.N)/Math.log(1/p)/p)} comparisons.`;
+  $("resCard").hidden=false;$("charts").hidden=false;
+  barChart(last);lineChart(p);
+}
+
+function barChart(rows){
+  const W=420,Hh=260,m={l:46,r:10,t:14,b:34},iw=W-m.l-m.r,ih=Hh-m.t-m.b;
+  const mx=Math.max(...rows.flatMap(r=>[r.ts,r.ta]))*1.1,gw=iw/rows.length;
+  let s=`<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Operation time bar chart">`;
+  for(let i=0;i<=4;i++){const v=mx*i/4,y=m.t+ih-ih*i/4;s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${y}" y2="${y}" stroke="var(--bd)"/><text class="m" x="${m.l-6}" y="${y+4}" text-anchor="end">${v.toFixed(0)}</text>`}
+  rows.forEach((r,i)=>{const x=m.l+i*gw+gw*.15,bw=gw*.3;
+    [[r.ts,"var(--sl)",0],[r.ta,"var(--avl)",1]].forEach(([v,c,j])=>{const bh=ih*v/mx;
+      s+=`<rect x="${x+j*(bw+4)}" y="${m.t+ih-bh}" width="${bw}" height="${bh}" rx="3" fill="${c}"/><text x="${x+j*(bw+4)+bw/2}" y="${m.t+ih-bh-4}" text-anchor="middle">${v.toFixed(0)}</text>`});
+    s+=`<text x="${m.l+i*gw+gw/2}" y="${Hh-12}" text-anchor="middle">${r.op}</text>`});
+  $("c1").innerHTML=s+"</svg>"}
+
+function lineChart(p){
+  const S=results.filter(r=>r.op==="search"),W=420,Hh=260,m={l:46,r:14,t:14,b:34},iw=W-m.l-m.r,ih=Hh-m.t-m.b;
+  const Ns=S.map(r=>r.N),lx=Ns.map(Math.log10),x0=Math.min(...lx),x1=Math.max(...lx)||x0+1;
+  const ref=n=>Math.log2(n);
+  const ymax=Math.max(...S.flatMap(r=>[r.cs,r.ca,2*ref(r.N)]))*1.1;
+  const X=n=>m.l+(x1===x0?iw/2:(Math.log10(n)-x0)/(x1-x0)*iw),Y=v=>m.t+ih-ih*v/ymax;
+  let s=`<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Comparisons per search versus n">`;
+  for(let i=0;i<=4;i++){const v=ymax*i/4;s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--bd)"/><text class="m" x="${m.l-6}" y="${Y(v)+4}" text-anchor="end">${v.toFixed(0)}</text>`}
+  const path=(f,c,d)=>`<polyline fill="none" stroke="${c}" stroke-width="2" ${d?'stroke-dasharray="5 4"':""} points="${S.map(r=>X(r.N)+","+Y(f(r))).join(" ")}"/>`;
+  s+=path(r=>ref(r.N),"var(--ref)",1)+path(r=>2*ref(r.N),"var(--ref)",1)+path(r=>r.cs,"var(--sl)")+path(r=>r.ca,"var(--avl)");
+  S.forEach(r=>{s+=`<circle cx="${X(r.N)}" cy="${Y(r.cs)}" r="3.5" fill="var(--sl)"/><circle cx="${X(r.N)}" cy="${Y(r.ca)}" r="3.5" fill="var(--avl)"/><text x="${X(r.N)}" y="${Hh-12}" text-anchor="middle">${r.N>=1000?r.N/1000+"k":r.N}</text>`});
+  $("c2").innerHTML=s+"</svg>"}
+
+/* ---------- Demo ---------- */
+$("demo").onclick=()=>{
+  const out=$("demoOut"),ks=$("keys").value.split(/[,\s]+/).filter(Boolean).map(Number);
+  if(!ks.length||ks.some(k=>!Number.isInteger(k))){out.textContent="Keys must be integers.";return}
+  const sl=new SkipList(+$("maxl").value||20,+$("p").value||.5),avl=new AVL();
+  rand=rng(+$("seed").value||42);
+  ks.forEach(k=>{sl.insert(k,k);avl.insert(k,k)});
+  const lo=+$("lo").value,hi=+$("hi").value,t=+$("del").value;
+  let o="";
+  for(let i=sl.level;i>=0;i--){const a=[];for(let x=sl.head.fwd[i];x;x=x.fwd[i])a.push(x.key);o+=`Level ${i}: ${a.join(" → ")||"(empty)"}\n`}
+  o+=`\nSkip list levels used : ${sl.level+1}   |   AVL height : ${avl.height()}\n`;
+  o+=`Range query [${lo}, ${hi}] : [${sl.range(lo,hi).join(", ")}]\n`;
+  const found=sl.search(t)!==null;o+=`Search ${t} : skip list ${found?"found":"not found"}, AVL ${avl.search(t)!==null?"found":"not found"}\n`;
+  const d1=sl.delete(t);avl.delete(t);
+  o+=`Delete ${t} : ${d1?"deleted":"key absent"}; level 0 now: ${sl.range(-Infinity,Infinity).join(", ")}`;
+  out.textContent=o};
+</script>
+</body>
+</html>
